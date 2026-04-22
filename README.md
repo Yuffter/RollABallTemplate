@@ -1,4 +1,4 @@
-# RollABallTemplate
+# Roll A Ball Template
 
 初心者向けのチーム開発用 Unity テンプレートです。  
 「ボールを転がしてアイテムを全部集めるゲーム」を題材に、**チームで分担しやすいプログラムの書き方**と**ゲームの組み立て方**を学べます。
@@ -13,7 +13,7 @@
 | レンダリング | Universal Render Pipeline (URP) |
 | ジャンル | 3D コレクション（ボールころがし） |
 
-**遊び方**: WASD または矢印キーでボールを動かし、フィールド上のアイテムを全部集めるとクリア。クリアタイムが表示される。
+**遊び方**: WASD または矢印キーでボールを動かし、フィールド上のアイテムを全部集めるとクリア。クリアタイムが表示される。フィールドから落下するとゲームオーバーになり、リトライボタンで最初からやり直せる。
 
 ---
 
@@ -24,13 +24,13 @@
   スタートボタンを押す
         ↓
 [ InGame シーン ]
-  ┌───────────────────────────────────────────────┐
-  │ GameStart  3 → 2 → 1 → Go!（プレイヤー動けない）│
-  │      ↓                                        │
-  │ Playing    ボールを動かしてアイテムを収集        │
-  │      ↓ アイテムが 0 個になったら                │
-  │ GameClear  タイム表示・プレイヤー固定            │
-  └───────────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────────┐
+  │ GameStart  3 → 2 → 1 → Go!（プレイヤー動けない）          │
+  │      ↓                                                   │
+  │ Playing    ボールを動かしてアイテムを収集                   │
+  │      ↓ アイテムが 0 個になったら        ↓ フィールドから落下 │
+  │ GameClear  タイム表示・プレイヤー固定  GameOver  リトライ表示│
+  └──────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -48,7 +48,8 @@ Assets/
 │       ├── PlayerFollower.cs        # カメラのプレイヤー追従
 │       ├── CountDownController.cs   # 開始カウントダウン
 │       ├── TimerController.cs       # タイマーの計測と表示
-│       └── ItemRotator.cs           # アイテムの回転・浮遊アニメーション
+│       ├── ItemRotator.cs           # アイテムの回転・浮遊アニメーション
+│       └── RetryButton.cs           # ゲームオーバー時のリトライボタン
 ├── Scenes/
 │   ├── Title.unity                  # タイトル画面シーン
 │   └── InGame.unity                 # ゲームプレイシーン
@@ -86,7 +87,7 @@ StartButton.onClick.RemoveListener(OnStartButtonClicked);
 **役割**: ゲーム全体の進行を「状態（State）」で管理する。各スクリプトを調整する司令塔。
 
 ```csharp
-private enum GameState { GameStart, Playing, GameClear }
+private enum GameState { GameStart, Playing, GameClear, GameOver }
 ```
 
 `ChangeState()` を呼ぶと状態が切り替わり、それぞれの状態で必要な処理が動く。
@@ -96,14 +97,18 @@ private enum GameState { GameStart, Playing, GameClear }
 | `GameStart` | カウントダウン開始。プレイヤーは動けない |
 | `Playing` | プレイヤー移動を許可・タイマー開始 |
 | `GameClear` | プレイヤー固定・タイマー停止・クリア表示 |
+| `GameOver` | プレイヤー固定・タイマー停止・ゲームオーバー表示 |
 
 ```csharp
 // Update() で毎フレーム "Item" タグのオブジェクトを数え、0になったらクリア
 int itemCount = GameObject.FindGameObjectsWithTag("Item").Length;
 if (itemCount == 0) ChangeState(GameState.GameClear);
+
+// プレイヤーが Y 座標 -10 より下に落ちたらゲームオーバー
+if (PlayerController.transform.position.y < -10f) ChangeState(GameState.GameOver);
 ```
 
-> **ポイント（ステートマシン）**: 状態を enum で管理することで、「今は何をすべきか」がコードを見ただけで分かる。複雑な条件分岐のかわりに `switch` で状態ごとの処理をまとめるのがコツ。
+> **ポイント（ステートマシン）**: 状態を enum で管理することで、「今は何をすべきか」がコードを見ただけで分かる。複雑な条件分岐のかわりに `switch` で状態ごとの処理をまとめるのがコツ。新しい状態（GameOver など）を追加するときは enum に値を足して `switch` に `case` を追加するだけで拡張できる。
 
 ---
 
@@ -180,6 +185,19 @@ if (isRunning) {
 
 ---
 
+### RetryButton.cs — リトライボタン
+
+**役割**: ゲームオーバー時に表示するリトライボタンが押されたら、現在のシーンを再ロードしてゲームを最初からやり直す。
+
+```csharp
+// 現在のシーン番号を取得して同じシーンを再ロードする
+SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+```
+
+> **ポイント**: シーン名のハードコードを避けるため `buildIndex`（Build Settings 上の順番）を使う。Unity の Button コンポーネントの OnClick にこのメソッドをインスペクターで登録するだけで動作する。
+
+---
+
 ### ItemRotator.cs — アイテムアニメーション
 
 **役割**: アイテムをY軸に回転させながら上下に浮遊させる。三角関数 `Mathf.Sin` を使ったアニメーションのパターン。
@@ -205,6 +223,7 @@ transform.position = initialPosition + Vector3.up * Mathf.Sin(Time.time * FloatF
 | `PlayerController` | プレイヤーの入力と移動 |
 | `TimerController` | タイマーの計測と表示 |
 | `CountDownController` | カウントダウンの演出 |
+| `RetryButton` | リトライボタンの処理 |
 | `InGameManager` | 上記を束ねるゲーム進行 |
 
 担当を分けることで、複数人が同じファイルを同時に編集する衝突（コンフリクト）を減らせる。
@@ -241,10 +260,19 @@ transform.position = initialPosition + Vector3.up * Mathf.Sin(Time.time * FloatF
 ### アイテムを増やす
 `Assets/Prefabs/Item.prefab` を InGame シーンにドラッグ＆ドロップするだけ。タグが `Item` に設定済みなので、自動で収集カウントに含まれる。
 
-### ステートを追加する（例：ゲームオーバー）
-1. `InGameManager.cs` の `GameState` enum に `GameOver` を追加する
-2. `ChangeState` の `switch` に `case GameState.GameOver:` を追加して処理を書く
-3. ゲームオーバー条件（例：落下検知）から `ChangeState(GameState.GameOver)` を呼ぶ
+### ゲームオーバー条件を変更する
+
+現在は Y 座標が `-10f` 以下になった場合にゲームオーバーとなる。条件を変えたい場合は `InGameManager.cs` の `Update()` 内の判定を修正する。
+
+```csharp
+// 例：制限時間 60 秒でゲームオーバーにする
+if (TimerController.CurrentTime > 60f) ChangeState(GameState.GameOver);
+```
+
+### ステートを追加する（例：ポーズ）
+1. `InGameManager.cs` の `GameState` enum に `Pause` を追加する
+2. `ChangeState` の `switch` に `case GameState.Pause:` を追加して処理を書く
+3. ポーズ条件（例：Escape キー入力）から `ChangeState(GameState.Pause)` を呼ぶ
 
 ### 新しいシーンを追加する（例：リザルト画面）
 1. `File > New Scene` で新しいシーンを作成して保存する
