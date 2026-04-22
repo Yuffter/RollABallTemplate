@@ -15,7 +15,8 @@ public class InGameManager : MonoBehaviour
     {
         GameStart,
         Playing,
-        GameClear
+        GameClear,
+        GameOver
     }
 
     // 現在のゲーム状態。最初は GameStart（カウントダウン中）にしておく
@@ -36,6 +37,9 @@ public class InGameManager : MonoBehaviour
     // ゲームクリア後の結果表示テキスト（インスペクターで割り当てる）
     public TMP_Text ResultText;
 
+    // ゲームオーバー時に表示するテキストUI（インスペクターで割り当てる）
+    public TMP_Text GameOverText;
+
     /// <summary>
     /// 最初に一度だけ呼ばれるメソッド。
     /// ゲームクリアテキストを非表示にしてからゲーム開始状態に移行する。
@@ -44,6 +48,8 @@ public class InGameManager : MonoBehaviour
     {
         // 最初はゲームクリアテキストを非表示にする
         GameClearText.gameObject.SetActive(false);
+        // 最初はゲームオーバーテキストを非表示にする
+        GameOverText.gameObject.SetActive(false);
 
         // ゲーム開始状態（カウントダウン）に切り替える
         ChangeState(GameState.GameStart);
@@ -89,6 +95,18 @@ public class InGameManager : MonoBehaviour
                 // タイムを小数点以下2桁で表示する
                 ResultText.text = $"Time: {TimerController.CurrentTime.ToString("F2")}s";
                 break;
+            
+            case GameState.GameOver:
+                // ゲームオーバーの処理をここに追加
+                // プレイヤーを動けないようにする
+                PlayerController.CanMove = false;
+                // タイマーを止める
+                TimerController.StopTimer();
+                // ゲームオーバーテキストを表示する
+                GameOverText.gameObject.SetActive(true);
+                // プレイヤーを完全に固定して動かなくする
+                PlayerController.FreezePlayer();
+                break;
         }
     }
 
@@ -108,6 +126,12 @@ public class InGameManager : MonoBehaviour
             if (itemCount == 0)
             {
                 ChangeState(GameState.GameClear);
+            }
+
+            // プレイヤーが特定の高さ以下に落ちたらゲームオーバー状態に切り替える
+            if (PlayerController.transform.position.y < -10f)
+            {
+                ChangeState(GameState.GameOver);
             }
         }
     }
